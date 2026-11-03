@@ -1,4 +1,3 @@
-// Lista de sites participantes
 const sites = [
   { id: 1, autor: "Camila Nogas", url: "https://camilanogas-a11y.github.io/site-CEIAS/?authuser=0" },
   { id: 2, autor: "João Ribeiro Miranda", url: "https://joaoribeiromiranda-crypto.github.io/site-C.E.I.A.S-/?authuser=0" },
@@ -9,13 +8,11 @@ const sites = [
   { id: 7, autor: "Davi Paulik", url: "https://davipaulik-star.github.io/Site-ceias/?authuser=0" }
 ];
 
-// Inicialização dos dados de votos do localStorage
 function getVotos() {
   const votosSalvos = localStorage.getItem('votos_ceias');
   if (votosSalvos) {
     return JSON.parse(votosSalvos);
   }
-  // Se não existir, inicializa com 0 votos para cada site
   const votosIniciais = {};
   sites.forEach(site => votosIniciais[site.id] = 0);
   return votosIniciais;
@@ -29,30 +26,32 @@ function jaVotou() {
   return localStorage.getItem('usuario_ja_votou') === 'true';
 }
 
-// Renderiza os cards na página
-function renderizarCards() {
+function renderizarCards(listaSites = sites) {
   const gridContainer = document.getElementById('grid-sites');
   const votos = getVotos();
   const usuarioVotou = jaVotou();
 
   gridContainer.innerHTML = '';
 
-  sites.forEach(site => {
+  listaSites.forEach(site => {
     const card = document.createElement('div');
     card.className = 'card';
 
     card.innerHTML = `
-      <div class="iframe-container">
-        <iframe src="${site.url}" title="Preview ${site.autor}"></iframe>
+      <div class="iframe-wrapper" onclick="abrirModal('${site.url}', '${site.autor}')">
+        <iframe class="iframe-scaled" src="${site.url}" title="Preview ${site.autor}"></iframe>
+        <div class="iframe-overlay">
+          <span class="preview-badge">🔍 Clique para expandir</span>
+        </div>
       </div>
       <div class="card-content">
         <div class="card-title">Projeto de ${site.autor}</div>
         <div class="vote-info">
-          <span>Votos:</span>
-          <span class="vote-count" id="votos-count-${site.id}">${votos[site.id] || 0}</span>
+          <span>Total de votos:</span>
+          <span class="vote-count">${votos[site.id] || 0}</span>
         </div>
         <div class="btn-actions">
-          <a href="${site.url}" target="_blank" rel="noopener noreferrer" class="btn btn-visit">Visitar</a>
+          <button class="btn btn-preview" onclick="abrirModal('${site.url}', '${site.autor}')">Visualizar</button>
           <button 
             class="btn btn-vote" 
             onclick="votar(${site.id})" 
@@ -67,10 +66,9 @@ function renderizarCards() {
   });
 }
 
-// Função de Votação
 function votar(idSite) {
   if (jaVotou()) {
-    alert('Você já registrou seu voto!');
+    alert('Você já votou!');
     return;
   }
 
@@ -82,15 +80,13 @@ function votar(idSite) {
 
   renderizarCards();
   renderizarRanking();
-  alert('Obrigado pelo seu voto!');
+  alert('Seu voto foi registrado com sucesso!');
 }
 
-// Renderiza o Ranking Atualizado
 function renderizarRanking() {
   const rankingList = document.getElementById('ranking-list');
   const votos = getVotos();
 
-  // Ordena os sites por quantidade de votos (do maior para o menor)
   const sitesOrdenados = [...sites].sort((a, b) => (votos[b.id] || 0) - (votos[a.id] || 0));
 
   rankingList.innerHTML = '';
@@ -106,7 +102,40 @@ function renderizarRanking() {
   });
 }
 
-// Inicialização da aplicação
+function filtrarSites() {
+  const termo = document.getElementById('search-input').value.toLowerCase();
+  const sitesFiltrados = sites.filter(site => site.autor.toLowerCase().includes(termo));
+  renderizarCards(sitesFiltrados);
+}
+
+// Modal de Tela Cheia
+function abrirModal(url, autor) {
+  const modal = document.getElementById('preview-modal');
+  const modalIframe = document.getElementById('modal-iframe');
+  const modalTitle = document.getElementById('modal-title');
+
+  modalTitle.textContent = `Projeto de ${autor}`;
+  modalIframe.src = url;
+  modal.style.display = 'flex';
+}
+
+function fecharModal() {
+  const modal = document.getElementById('preview-modal');
+  const modalIframe = document.getElementById('modal-iframe');
+
+  modal.style.display = 'none';
+  modalIframe.src = '';
+}
+
+function resetarVotacao() {
+  if (confirm("Deseja resetar os votos armazenados neste navegador?")) {
+    localStorage.removeItem('votos_ceias');
+    localStorage.removeItem('usuario_ja_votou');
+    renderizarCards();
+    renderizarRanking();
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   renderizarCards();
   renderizarRanking();
