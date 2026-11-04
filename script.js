@@ -1,3 +1,22 @@
+// Importações do Firebase (usando a CDN oficial)
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getDatabase, ref, runTransaction, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+// ⚠️ SUBSTITUA PELAS CONFIGURAÇÕES DO SEU PROJETO NO FIREBASE (gratuito)
+const firebaseConfig = {
+  apiKey: "SUA_API_KEY",
+  authDomain: "seu-projeto.firebaseapp.com",
+  databaseURL: "https://seu-projeto-default-rtdb.firebaseio.com",
+  projectId: "seu-projeto",
+  storageBucket: "seu-projeto.appspot.com",
+  messagingSenderId: "123456789",
+  appId: "1:123456789:web:abc123def456"
+};
+
+// Inicializa o Firebase
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
 const sites = [
   { id: 1, autor: "Camila Nogas", url: "https://camilanogas-a11y.github.io/site-CEIAS/?authuser=0" },
   { id: 2, autor: "João Ribeiro Miranda", url: "https://joaoribeiromiranda-crypto.github.io/site-C.E.I.A.S-/?authuser=0" },
@@ -8,135 +27,128 @@ const sites = [
   { id: 7, autor: "Davi Paulik", url: "https://davipaulik-star.github.io/Site-ceias/?authuser=0" }
 ];
 
-function getVotos() {
-  const votosSalvos = localStorage.getItem('votos_ceias');
-  if (votosSalvos) {
-    return JSON.parse(votosSalvos);
-  }
-  const votosIniciais = {};
-  sites.forEach(site => votosIniciais[site.id] = 0);
-  return votosIniciais;
+let votosGlobais = {};
+
+function jaVotouLocalmente() {
+  return localStorage.getItem('usuario_ja_votou_ceias') === 'true';
 }
 
-function salvarVotos(votos) {
-  localStorage.setItem('votos_ceias', JSON.stringify(votos));
-}
+// Ouve as atualizações do banco de dados em TEMPO REAL para todos os usuários
+const votosRef = ref(db, 'votos');
+onValue(votosRef, (snapshot) => {
+  const data = snapshot.val() || {};
+  votosGlobais = data;
+  renderizarCards();
+  renderizarRanking();
+  atualizarEstatisticas();
+});
 
-function jaVotou() {
-  return localStorage.getItem('usuario_ja_votou') === 'true';
-}
+function renderizarCards() {
+  const container = document.getElementById('grid-sites');
+  if (!container) return;
+  const usuarioVotou = jaVotouLocalmente();
 
-function renderizarCards(listaSites = sites) {
-  const gridContainer = document.getElementById('grid-sites');
-  const votos = getVotos();
-  const usuarioVotou = jaVotou();
+  container.innerHTML = '';
 
-  gridContainer.innerHTML = '';
-
-  listaSites.forEach(site => {
+  sites.forEach(site => {
+    const numVotos = votosGlobais[site.id] || 0;
     const card = document.createElement('div');
     card.className = 'card';
 
     card.innerHTML = `
-      <div class="iframe-wrapper" onclick="abrirModal('${site.url}', '${site.autor}')">
-        <iframe class="iframe-scaled" src="${site.url}" title="Preview ${site.autor}"></iframe>
-        <div class="iframe-overlay">
-          <span class="preview-badge">🔍 Clique para expandir</span>
+      <div class="card-preview-container">
+        <div class="iframe-scaled-wrapper">
+          <iframe src="${site.url}" title="Preview de ${site.autor}" loading="lazy"></iframe>
+        </div>
+        <div class="card-overlay" onclick="abrirModal('${site.url}', '${site.autor}')">
+          <span class="expand-btn"><i class="fa-solid fa-expand"></i> Visualizar Projeto</span>
         </div>
       </div>
-      <div class="card-content">
-        <div class="card-title">Projeto de ${site.autor}</div>
-        <div class="vote-info">
-          <span>Total de votos:</span>
-          <span class="vote-count">${votos[site.id] || 0}</span>
+      
+      <div class="card-body">
+        <h3 class="card-author">${site.autor}</h3>
+        <div class="card-meta">
+          <span class="vote-badge"><i class="fa-solid fa-fire"></i> ${numVotos} ${numVotos === 1 ? 'voto' : 'votos'}</span>
         </div>
-        <div class="btn-actions">
-          <button class="btn btn-preview" onclick="abrirModal('${site.url}', '${site.autor}')">Visualizar</button>
-          <button 
-            class="btn btn-vote" 
-            onclick="votar(${site.id})" 
-            ${usuarioVotou ? 'disabled' : ''}>
+        <div class="card-actions">
+          <button class="btn btn-secondary" onclick="abrirModal('${site.url}', '${site.autor}')">Preview</button>
+          <button class="btn btn-primary" id="btn-votar-${site.id}" ${usuarioVotou ? 'disabled' : ''}>
             ${usuarioVotou ? 'Votado' : 'Votar'}
           </button>
         </div>
       </div>
     `;
 
-    gridContainer.appendChild(card);
+    container.appendChild(card);
+
+    // Evento de clique para votar no Firebase
+    const btnVotar = card.querySelector(`#btn-votar-${site.id}`);
+    if (btnVotar && !usuarioVotou) {
+      btnVotar.addEventListener('click', () => registrarVotoNoFirebase(site.id));
+    }
   });
+
+  setTimeout(calcularEscala, 50);
 }
 
-function votar(idSite) {
-  if (jaVotou()) {
-    alert('Você já votou!');
+// Incrementa o voto no banco de dados de forma segura (Transação)
+function registrarVotoNoFirebase(idSite) {
+  if (jaVotouLocalmente()) {
+    alert('Você já registrou seu voto neste navegador!');
     return;
   }
 
-  const votos = getVotos();
-  votos[idSite] = (votos[idSite] || 0) + 1;
-
-  salvarVotos(votos);
-  localStorage.setItem('usuario_ja_votou', 'true');
-
-  renderizarCards();
-  renderizarRanking();
-  alert('Seu voto foi registrado com sucesso!');
-}
-
-function renderizarRanking() {
-  const rankingList = document.getElementById('ranking-list');
-  const votos = getVotos();
-
-  const sitesOrdenados = [...sites].sort((a, b) => (votos[b.id] || 0) - (votos[a.id] || 0));
-
-  rankingList.innerHTML = '';
-
-  sitesOrdenados.forEach((site, index) => {
-    const li = document.createElement('li');
-    li.className = 'ranking-item';
-    li.innerHTML = `
-      <span><strong>#${index + 1}</strong> - ${site.autor}</span>
-      <strong>${votos[site.id] || 0} voto(s)</strong>
-    `;
-    rankingList.appendChild(li);
+  const itemVotoRef = ref(db, `votos/${idSite}`);
+  
+  runTransaction(itemVotoRef, (currentVotes) => {
+    return (currentVotes || 0) + 1;
+  }).then(() => {
+    localStorage.setItem('usuario_ja_votou_ceias', 'true');
+    alert('Voto computado com sucesso!');
+  }).catch((error) => {
+    console.error("Erro ao computar voto: ", error);
+    alert('Ocorreu um erro ao registrar o voto. Tente novamente.');
   });
 }
 
-function filtrarSites() {
-  const termo = document.getElementById('search-input').value.toLowerCase();
-  const sitesFiltrados = sites.filter(site => site.autor.toLowerCase().includes(termo));
-  renderizarCards(sitesFiltrados);
+function renderizarRanking() {
+  const list = document.getElementById('ranking-list');
+  if (!list) return;
+
+  const ordenados = [...sites].sort((a, b) => (votosGlobais[b.id] || 0) - (votosGlobais[a.id] || 0));
+  list.innerHTML = '';
+
+  ordenados.forEach((site, index) => {
+    const numVotos = votosGlobais[site.id] || 0;
+    const li = document.createElement('li');
+    li.className = `ranking-item ${index < 3 ? 'rank-' + (index + 1) : ''}`;
+    
+    li.innerHTML = `
+      <div style="display: flex; align-items: center;">
+        <span class="ranking-rank">${index + 1}</span>
+        <span class="ranking-name">${site.autor}</span>
+      </div>
+      <span class="ranking-votes">${numVotos} ${numVotos === 1 ? 'voto' : 'votos'}</span>
+    `;
+    list.appendChild(li);
+  });
 }
 
-// Modal de Tela Cheia
-function abrirModal(url, autor) {
-  const modal = document.getElementById('preview-modal');
-  const modalIframe = document.getElementById('modal-iframe');
-  const modalTitle = document.getElementById('modal-title');
-
-  modalTitle.textContent = `Projeto de ${autor}`;
-  modalIframe.src = url;
-  modal.style.display = 'flex';
+function atualizarEstatisticas() {
+  const total = Object.values(votosGlobais).reduce((a, b) => a + b, 0);
+  const el = document.getElementById('total-votes');
+  if (el) el.textContent = total;
 }
 
-function fecharModal() {
-  const modal = document.getElementById('preview-modal');
-  const modalIframe = document.getElementById('modal-iframe');
-
-  modal.style.display = 'none';
-  modalIframe.src = '';
+function calcularEscala() {
+  const containers = document.querySelectorAll('.card-preview-container');
+  containers.forEach(container => {
+    const wrapper = container.querySelector('.iframe-scaled-wrapper');
+    if (wrapper) {
+      const containerWidth = container.offsetWidth;
+      wrapper.style.transform = `scale(${containerWidth / 1280})`;
+    }
+  });
 }
 
-function resetarVotacao() {
-  if (confirm("Deseja resetar os votos armazenados neste navegador?")) {
-    localStorage.removeItem('votos_ceias');
-    localStorage.removeItem('usuario_ja_votou');
-    renderizarCards();
-    renderizarRanking();
-  }
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  renderizarCards();
-  renderizarRanking();
-});
+window.addEventListener('resize', calcularEscala);
