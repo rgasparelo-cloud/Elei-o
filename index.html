@@ -4,50 +4,132 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Eleição: Site Mais Criativo C.E.I.A.S</title>
+
+  <!-- Google Fonts & FontAwesome -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
   <link rel="stylesheet" href="style.css">
+
+  <!-- CDNs do Firebase (Carregamento Clássico via Window Object) -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 </head>
 <body>
 
-  <header>
-    <h1>🏆 Votação: Site Mais Criativo C.E.I.A.S</h1>
-    <p>Explore as criações dos alunos e escolha o seu projeto favorito!</p>
+  <!-- Barra de Navegação -->
+  <nav class="navbar">
+    <div class="nav-container">
+      <div class="logo">
+        <i class="fa-solid fa-trophy gold-icon"></i>
+        <span>C.E.I.A.S <strong>Awards</strong></span>
+      </div>
+      <div class="nav-controls">
+        <button id="theme-toggle" class="icon-btn" title="Alternar Tema">
+          <i class="fa-solid fa-moon"></i>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero Section -->
+  <header class="hero">
+    <div class="hero-content">
+      <span class="badge"><i class="fa-solid fa-sparkles"></i> Edição 2026</span>
+      <h1>Vote no Site Mais Criativo</h1>
+      <p>Nossos alunos desenvolveram projetos incríveis. Explore cada aplicação e vote na sua favorita!</p>
+      
+      <div class="stats-bar">
+        <div class="stat-item">
+          <i class="fa-solid fa-laptop-code"></i>
+          <div>
+            <strong id="total-projects">7</strong>
+            <span>Projetos</span>
+          </div>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-item">
+          <i class="fa-solid fa-check-to-slot"></i>
+          <div>
+            <strong id="total-votes">0</strong>
+            <span>Votos Totais</span>
+          </div>
+        </div>
+      </div>
+    </div>
   </header>
 
-  <main class="container">
-    <div class="search-bar">
-      <input type="text" id="search-input" placeholder="Buscar por autor do projeto..." oninput="filtrarSites()">
+  <main class="main-content">
+    <div class="controls-section">
+      <div class="search-box">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="text" id="search-input" placeholder="Buscar por aluno..." oninput="filtrarSites()">
+      </div>
     </div>
 
-    <section class="grid-sites" id="grid-sites">
-      <!-- Cards gerados via JS -->
+    <div class="section-header">
+      <h2><i class="fa-solid fa-grid-2"></i> Candidatos</h2>
+      <div class="view-options">
+        <button class="view-btn active" id="btn-grid-large" onclick="mudarLayout('large')" title="Grid Grande">
+          <i class="fa-solid fa-border-all"></i>
+        </button>
+        <button class="view-btn" id="btn-grid-compact" onclick="mudarLayout('compact')" title="Grid Compacto">
+          <i class="fa-solid fa-table-cells-large"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Container dos Cards dos Sites -->
+    <section class="grid-sites grid-large" id="grid-sites">
+      <!-- Gerado dinamicamente pelo JavaScript -->
     </section>
 
-    <section class="ranking-container">
-      <h2>📊 Ranking Parcial</h2>
-      <ul id="ranking-list">
-        <!-- Ranking gerado via JS -->
-      </ul>
-      <button class="btn-reset" onclick="resetarVotacao()">Resetar Votação (Modo Teste)</button>
+    <!-- Leaderboard / Ranking -->
+    <section class="ranking-section">
+      <div class="ranking-card">
+        <div class="ranking-header">
+          <h2><i class="fa-solid fa-ranking-star gold-icon"></i> Ranking Parcial em Tempo Real</h2>
+          <button class="btn-reset" onclick="resetarVotoLocal()" title="Resetar Trava de Voto neste Aparelho">
+            <i class="fa-solid fa-rotate-left"></i> Resetar Meu Voto
+          </button>
+        </div>
+        
+        <ul id="ranking-list" class="ranking-list">
+          <!-- Gerado dinamicamente pelo JavaScript -->
+        </ul>
+      </div>
     </section>
   </main>
 
-  <!-- Modal de Preview em Tela Cheia -->
+  <!-- Modal de Visualização em Tela Cheia -->
   <div id="preview-modal" class="modal">
     <div class="modal-content">
       <div class="modal-header">
-        <h3 id="modal-title">Preview do Projeto</h3>
-        <button class="close-btn" onclick="fecharModal()">&times;</button>
+        <div class="modal-title-wrap">
+          <i class="fa-solid fa-globe"></i>
+          <h3 id="modal-title">Projeto</h3>
+        </div>
+        <div class="modal-actions">
+          <a id="modal-external-link" href="#" target="_blank" class="modal-ext-btn">
+            <i class="fa-solid fa-arrow-up-right-from-square"></i> Abrir em Nova Guia
+          </a>
+          <button class="close-btn" onclick="fecharModal()">&times;</button>
+        </div>
       </div>
       <div class="modal-body">
-        <iframe id="modal-iframe" src="" title="Preview Completo"></iframe>
+        <iframe id="modal-iframe" src="" title="Preview Completo do Site"></iframe>
       </div>
     </div>
   </div>
 
+  <div id="toast-container" class="toast-container"></div>
+
   <footer>
-    <p>&copy; 2026 Eleição de Sites Criativos C.E.I.A.S</p>
+    <p>&copy; 2026 Eleição de Sites Criativos C.E.I.A.S — Todos os direitos reservados.</p>
   </footer>
 
-  <script type="module" src="script.js"></script>
+  <script src="script.js"></script>
 </body>
 </html>
